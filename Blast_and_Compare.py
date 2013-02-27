@@ -17,8 +17,8 @@ parser.add_argument('-a', '--BLAST_algorithm', metavar='algorithm', dest='a', ty
 			help='Enter the algorithm BLAST wil use (default=blastn)', default='blastn')
 parser.add_argument('-d', '--BLAST_database', metavar='database', dest='d', type=str,
 			help = 'Enter the database BLAST wil use (default=nt)', default = 'nt')
-parser.add_argument('-s', '--hitlist_size', dest='s', type=str,
-			help = 'Enter the size of the hitlist BLAST wil return (default=1)', default='1')
+parser.add_argument('-s', '--hitlist_size', dest='s', type=int,
+			help = 'Enter the size of the hitlist BLAST wil return (default=1)', default=1)
 parser.add_argument('-m', '--megablast', dest='m', action='store_true', 
 			help = 'Use megablast, can only be used in combination with blastn')
 parser.add_argument('-mi', '--min_identity', dest='mi', type=int, 
@@ -38,17 +38,25 @@ def blast_bulk (fasta_file, settings):
 
 	# The blast modules are imported from biopython
 	from Bio.Blast import NCBIWWW, NCBIXML
+	from Bio import SeqIO
+	
+	# parse the fasta file
+	seq_list = [seq for seq in SeqIO.parse(fasta_file, 'fasta')]
 
 	# open the fasta file
-	fasta_open = open(fasta_file, 'r')
-	fasta_handle = fasta_open.read()
+	#fasta_open = open(fasta_file, 'r')
+	#fasta_handle = fasta_open.read()
 	
 	blast_list = []
 
+	for seq in seq_list:
+		print seq
+		result_handle = NCBIWWW.qblast(settings[0], settings[1], seq.format('fasta'), megablast=settings[3], hitlist_size=settings[2])
+		blast_list.append(NCBIXML.read(result_handle))
 	# Blast the sequences against the NCBI nucleotide database
 	# return a list with the blast results
-	result_handle = NCBIWWW.qblast(settings[0], settings[1], fasta_handle, megablast=settings[3], hitlist_size=settings[2])
-	blast_list = [item for item in NCBIXML.parse(result_handle)]	
+	#result_handle = NCBIWWW.qblast(settings[0], settings[1], fasta_handle, megablast=settings[3], hitlist_size=settings[2])
+	#blast_list = [item for item in NCBIXML.parse(result_handle)]	
 
 	return blast_list
 
@@ -72,7 +80,7 @@ def CITES_db (CITES_file):
 	CITES_dic = {}
 	
 	for line in open(CITES_file, 'r'):
-		line = line.split(',')
+		line = line.rstrip().split(',')
 		if line[0] != 'Date':
 			CITES_dic[line[0]] = line[1:]
 
@@ -84,6 +92,8 @@ def parse_blast (blast_list, filter_list, CITES_dic, outpath, mode):
 	# parse_through the blast results and remove
 	# results that do not meet the e-value, coverage,
 	# identity and blacklist critera
+
+	from Bio.Blast import NCBIWWW, NCBIXML
 
 	for blast_result in blast_list:
 		for alignment in blast_result.alignments:
@@ -102,7 +112,7 @@ def parse_blast (blast_list, filter_list, CITES_dic, outpath, mode):
 				# create containing the relevant blast results
 				# pass this list to the filter_hits function to
 				# filter and write the blast results
-				filter_hits([blast_result.query, ('\"' + alignment.title + '\"'), gb_num, str(identity),
+				filter_hits([('\"' + blast_result.query + '\"'), ('\"' + alignment.title + '\"'), gb_num, str(identity),
 						str(blast_result.query_length), str(hsp.expect), str(hsp.bits)],
 						filter_list, CITES_dic, outpath, mode)
 
@@ -134,6 +144,7 @@ def obtain_tax (code):
 
 def filter_hits (blast, filter_list, CITES_dic, outpath, mode):
 	
+	print blast
 	# filter the blast hits, based on the minimum
 	# identity, minimum coverage, e-value and the user blacklist
 	if float(blast[3]) >= filter_list[0] and int(blast[4]) >= filter_list[1] and float(blast[5]) <= filter_list[2]:
@@ -160,16 +171,16 @@ def write_results (result, outpath, mode):
 
 
 def main ():
-	
+
 	# two lists of the desired blast and filter settings
 	blast_settings = [args.a, args.d, args.s, args.m]
 	filter_list = [args.mi, args.mc, args.me, blacklist(args.b)]
 	
 	# create a dictionary containing the local CITES set
 	CITES_dic = CITES_db(args.c)
-	
+
 	# create a blank result file and write the header
-	header = 'query,hit,accession,identity,hit length,e-value,bit-score, taxon id, name, CITES species, CITES info, NCBI species, appendix'
+	header = 'query,hit,accession,identity,hit length,e-value,bit-score,taxon id,genbank record species,CITES species,CITES info,NCBI Taxonomy name,appendix'
 	write_results(header, args.o, 'w')
 
 	# blast the fasta file

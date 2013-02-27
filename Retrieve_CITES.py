@@ -238,10 +238,8 @@ def combine_sets (CITES_dic):
 			# taxid linked species as values
 			for taxid in temp_taxon_list:
 				if taxid in taxon_id_dic:
-					if appendix < int(taxon_id_dic[taxid][3]):
-						taxon_id_dic[taxid] = [cell[0],cell[1],obtain_tax(taxid),str(appendix)]
-				else:
-					taxon_id_dic[taxid] = [cell[0],cell[1],obtain_tax(taxid),str(appendix)]
+					if appendix > int(taxon_id_dic[taxid][3]): continue
+				taxon_id_dic[taxid] = [cell[0],cell[1],obtain_tax(taxid),str(appendix)]
 	
 	return taxon_id_dic
 			
